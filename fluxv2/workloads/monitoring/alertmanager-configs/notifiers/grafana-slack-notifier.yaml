@@ -1,0 +1,10 @@
+apiVersion: v1
+data:
+  slack-notifier.yaml: ????=
+kind: Secret
+metadata:
+  name: grafana-slack-notifier
+  namespace: monitoring
+  labels:
+    grafana_notifier: "1"
+type: Opaque

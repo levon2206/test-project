@@ -1,0 +1,83 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app: kube-prometheus-stack
+    release: prometheus-operator
+  name: redis.rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: oliver006/redis_exporter
+    rules:
+    - alert: Redis down
+      annotations:
+        message: Redis instance is down
+      expr: "redis_up == 0"
+      labels:
+        severity: critical
+    - alert: Redis missing master
+      annotations:
+        message: Redis cluster has no node marked as master.
+      expr: 'count(redis_instance_info{role="master"}) == 0'
+      labels:
+        severity: critical
+    - alert: Redis too many masters
+      annotations:
+        message: Redis cluster has too many nodes marked as master.
+      expr: 'count(redis_instance_info{role="master"}) > 1'
+      labels:
+        severity: critical
+    - alert: Redis disconnected slaves
+      annotations:
+        message: Redis not replicating for all slaves. Consider reviewing the
+          redis replication status.
+      expr: 'count without (instance, job) (redis_connected_slaves) - sum without
+        (instance, job) (redis_connected_slaves) - 1 > 1'
+      labels:
+        severity: critical
+    - alert: Redis replication broken
+      annotations:
+        message: Redis instance lost a slave
+      expr: "delta(redis_connected_slaves[1m]) < 0"
+      labels:
+        severity: critical
+    - alert: Redis cluster flapping
+      annotations:
+        message: Changes have been detected in Redis replica connection. This
+          can occur when replica nodes lose connection to the master and reconnect
+          (a.k.a flapping).
+      expr: 'changes(redis_connected_slaves[5m]) > 2'
+      labels:
+        severity: critical
+    - alert: Redis missing backup
+      annotations:
+        message: Redis has not been backuped for 24 hours
+      expr: "time() - redis_rdb_last_save_timestamp_seconds > 60 * 60 * 24"
+      labels:
+        severity: critical
+    - alert: Redis out of memory
+      annotations:
+        message: Redis is running out of memory (> 90%)
+      expr: "redis_memory_used_bytes / redis_total_system_memory_bytes * 100 >\
+        \ 90"
+      labels:
+        severity: warning
+    - alert: Redis too many connections
+      annotations:
+        message: Redis instance has too many connections
+      expr: "redis_connected_clients > 100"
+      labels:
+        severity: warning
+    - alert: Redis not enough connections
+      annotations:
+        message: Redis instance should have more connections (> 5)
+      expr: "redis_connected_clients < 5"
+      labels:
+        severity: warning
+    - alert: Redis rejected connections
+      annotations:
+        message: Some connections to Redis has been rejected
+      expr: "increase(redis_rejected_connections_total[1m]) > 0"
+      labels:
+        severity: critical

@@ -1,0 +1,91 @@
+# Source: simple-app/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simple-app
+  namespace: dev
+  labels:
+    app.kubernetes.io/name: simple-app
+    app.kubernetes.io/instance: simple-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: simple-app
+      app.kubernetes.io/instance: simple-app
+  strategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        vault.hashicorp.com/agent-inject: 'true'
+        vault.hashicorp.com/agent-inject-secret-db_config.ini: credentials/db_config
+        vault.hashicorp.com/agent-inject-template-db_config.ini: |
+          {{- with secret "credentials/db_config" -}}
+          {{- range $_, $value := .Data.data -}}
+          {{ $value }}
+          {{ end -}}
+          {{- end -}}
+        vault.hashicorp.com/agent-pre-populate-only: 'true'
+        vault.hashicorp.com/agent-revoke-on-shutdown: 'true'
+        vault.hashicorp.com/role: vaultauthrole
+        vault.hashicorp.com/secret-volume-path: /vault/secret
+      labels:
+        app.kubernetes.io/name: simple-app
+        app.kubernetes.io/instance: simple-app
+    spec:
+      serviceAccountName: vault-auth
+      securityContext: {}
+      containers:
+        - name: app
+          securityContext: {}
+          image: "*.dkr.ecr.eu-central-1.amazonaws.com/simple-app:v0.2.0-beta.68" # {"$imagepolicy": "flux-system:simple-app"}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: HEALTH_ENDPOINT
+              value: /health
+            - name: HEALTH_PORT
+              value: "5050"
+            - name: HTTP_PORT
+              value: "5050"
+          ports:
+            - name: http
+              containerPort: 5050
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5050
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5050
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            limits:
+              cpu: 100m
+              memory: 50Mi
+            requests:
+              cpu: 10m
+              memory: 10Mi

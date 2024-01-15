@@ -1,0 +1,179 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app: kube-prometheus-stack
+    release: prometheus-operator
+  name: postgresql.rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: wrouesnel/postgres_exporter
+    rules:
+    - alert: Postgresql down
+      annotations:
+        message: Postgresql instance is down
+      expr: "pg_up == 0"
+      labels:
+        severity: critical
+    - alert: Postgresql restarted
+      annotations:
+        message: Postgresql restarted
+      expr: "time() - pg_postmaster_start_time_seconds < 60"
+      labels:
+        severity: critical
+    - alert: Postgresql exporter error
+      annotations:
+        message: Postgresql exporter is showing errors. A query may be buggy in
+          query.yaml
+      expr: 'pg_exporter_last_scrape_error > 0'
+      labels:
+        severity: warning
+    - alert: Postgresql replication lag
+      annotations:
+        message: PostgreSQL replication lag is going up (> 10s)
+      expr: '(pg_replication_lag) > 10 and ON(instance) (pg_replication_is_replica
+        == 1)'
+      labels:
+        severity: warning
+    - alert: Postgresql table not vaccumed
+      annotations:
+        message: Table has not been vaccum for 24 hours
+      expr: "time() - pg_stat_user_tables_last_autovacuum > 60 * 60 * 24"
+      labels:
+        severity: warning
+    - alert: Postgresql table not analyzed
+      annotations:
+        message: Table has not been analyzed for 24 hours
+      expr: "time() - pg_stat_user_tables_last_autoanalyze > 60 * 60 * 24"
+      labels:
+        severity: warning
+    - alert: Postgresql too many connections
+      annotations:
+        message: PostgreSQL instance has too many connections
+      expr: 'sum by (datname) (pg_stat_activity_count{datname!~"template.*|postgres"})
+        > pg_settings_max_connections * 0.9'
+      labels:
+        severity: warning
+    - alert: Postgresql not enough connections
+      annotations:
+        message: PostgreSQL instance should have more connections (> 5)
+      expr: 'sum by (datname) (pg_stat_activity_count{datname!~"template.*|postgres"})
+        < 5'
+      labels:
+        severity: warning
+    - alert: Postgresql dead locks
+      annotations:
+        message: PostgreSQL has dead-locks
+      expr: 'rate(pg_stat_database_deadlocks{datname!~"template.*|postgres"}[1m])
+        > 0'
+      labels:
+        severity: warning
+    - alert: Postgresql slow queries
+      annotations:
+        message: PostgreSQL executes slow queries
+      expr: 'pg_slow_queries > 0'
+      labels:
+        severity: warning
+    - alert: Postgresql high rollback rate
+      annotations:
+        message: Ratio of transactions being aborted compared to
+          committed is > 2 %
+      expr: 'rate(pg_stat_database_xact_rollback{datname!~"template.*"}[3m]) /
+        rate(pg_stat_database_xact_commit{datname!~"template.*"}[3m]) > 0.02'
+      labels:
+        severity: warning
+    - alert: Postgresql commit rate low
+      annotations:
+        message: Postgres seems to be processing very few transactions
+      expr: 'rate(pg_stat_database_xact_commit[1m]) < 10'
+      labels:
+        severity: critical
+    - alert: Postgresql low XID consumption
+      annotations:
+        message: Postgresql seems to be consuming transaction IDs very slowly
+      expr: 'rate(pg_txid_current[1m]) < 5'
+      labels:
+        severity: warning
+    - alert: Postgresqllow XLOG consumption
+      annotations:
+        message: Postgres seems to be consuming XLOG very slowly
+      expr: 'rate(pg_xlog_position_bytes[1m]) < 100'
+      labels:
+        severity: warning
+    - alert: Postgresql WALE replication stopped
+      annotations:
+        message: WAL-E replication seems to be stopped
+      expr: 'rate(pg_xlog_position_bytes[1m]) == 0'
+      labels:
+        severity: critical
+    - alert: Postgresql high rate statement timeout
+      annotations:
+        message: Postgres transactions showing high rate of statement timeouts
+      expr: 'rate(postgresql_errors_total{type="statement_timeout"}[5m]) > 3'
+      labels:
+        severity: critical
+    - alert: Postgresql high rate deadlock
+      annotations:
+        message: Postgres detected deadlocks
+      expr: 'rate(postgresql_errors_total{type="deadlock_detected"}[1m]) * 60
+        > 1'
+      labels:
+        severity: critical
+          # - alert: Postgresql replication lab bytes
+          #   annotations:
+          #     message: Postgres Replication lag (in bytes) is high
+          #   expr: '(pg_xlog_position_bytes and pg_replication_is_replica == 0) - GROUP_RIGHT(instance) (pg_xlog_position_bytes and pg_replication_is_replica == 1) > 1e+09'
+          #   labels:
+          #     severity: critical
+    - alert: Postgresql unused replication slot
+      annotations:
+        message: Unused Replication Slots
+      expr: 'pg_replication_slots_active == 0'
+      labels:
+        severity: warning
+    - alert: Postgresql too many dead tuples
+      annotations:
+        message: PostgreSQL dead tuples is too large
+      expr: '((pg_stat_user_tables_n_dead_tup > 10000) / (pg_stat_user_tables_n_live_tup
+        + pg_stat_user_tables_n_dead_tup)) >= 0.1 unless ON(instance) (pg_replication_is_replica
+        == 1)'
+      labels:
+        severity: warning
+    - alert: Postgresql split brain
+      annotations:
+        message: Split Brain, too many primary Postgresql databases in read-write
+          mode
+      expr: 'count(pg_replication_is_replica == 0) != 1'
+      labels:
+        severity: critical
+    - alert: Postgresql promoted node
+      annotations:
+        message: Postgresql standby server has been promoted as primary node
+      expr: 'pg_replication_is_replica and changes(pg_replication_is_replica[1m])
+        > 0'
+      labels:
+        severity: warning
+    - alert: Postgresql configuration changed
+      annotations:
+        message: Postgres Database configuration change has occurred
+      expr: '{__name__=~"pg_settings_.*"} != ON(__name__) {__name__=~"pg_settings_([^t]|t[^r]|tr[^a]|tra[^n]|tran[^s]|trans[^a]|transa[^c]|transac[^t]|transact[^i]|transacti[^o]|transactio[^n]|transaction[^_]|transaction_[^r]|transaction_r[^e]|transaction_re[^a]|transaction_rea[^d]|transaction_read[^_]|transaction_read_[^o]|transaction_read_o[^n]|transaction_read_on[^l]|transaction_read_onl[^y]).*"}
+        OFFSET 5m'
+      labels:
+        severity: warning
+    - alert: Postgresql SSL compression active
+      annotations:
+        message: Database connections with SSL compression enabled. This may add
+          significant jitter in replication delay. Replicas should turn off SSL
+          compression via `sslcompression=0` in `recovery.conf`.
+      expr: 'sum(pg_stat_ssl_compression) > 0'
+      labels:
+        severity: critical
+    - alert: Postgresql too many locks acquired
+      annotations:
+        message: Too many locks acquired on the database. If this alert happens
+          frequently, we may need to increase the postgres setting max_locks_per_transaction.
+      expr: '((sum (pg_locks_count)) / (pg_settings_max_locks_per_transaction
+        * pg_settings_max_connections)) > 0.20'
+      labels:
+        severity: critical

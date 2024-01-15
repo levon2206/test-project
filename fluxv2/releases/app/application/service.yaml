@@ -1,0 +1,20 @@
+---
+# Source: simple-app/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: simple-app
+  namespace: dev
+  labels:
+    app.kubernetes.io/name: simple-app
+    app.kubernetes.io/instance: simple-app
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 5050
+    targetPort: http
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: simple-app
+    app.kubernetes.io/instance: simple-app

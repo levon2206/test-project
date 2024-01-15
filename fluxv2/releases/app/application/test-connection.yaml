@@ -1,0 +1,19 @@
+---
+# Source: simple-app/templates/tests/test-connection.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "simple-app-test-connection"
+  namespace: dev
+  labels:
+    app.kubernetes.io/name: simple-app
+    app.kubernetes.io/instance: simple-app
+  annotations:
+    helm.sh/hook: test
+spec:
+  containers:
+    - name: wget
+      image: busybox
+      command: ['wget']
+      args: ['simple-app:5050']
+  restartPolicy: Never

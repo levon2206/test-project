@@ -1,0 +1,91 @@
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: dev-alertmanagerconfig
+  namespace: monitoring
+spec:
+  route:
+    groupBy: ['alertname', 'cluster', 'job', 'env']
+    groupWait: 30s
+    groupInterval: 5m
+    repeatInterval: 12h
+    receiver: dev-default
+    routes:
+    - match:
+        alertname: Watchdog
+      receiver: null
+    - match_re:
+        env: .*-dev
+      receiver: dev-default
+    # capture All WARN to the 'dev-warnings' with P3
+    - match:
+        severity: warning
+      receiver: dev-warnings
+      routes:
+      # forward Dev WARN to the 'dev-default'
+      - match_re:
+          env: dev-.*
+        receiver: dev-default
+    # capture All CRIT to the 'critical' with P1
+    - match:
+        severity: critical
+      receiver: dev-criticals
+      routes:
+        # forward Stage CRIT to the 'warning'
+      - match_re:
+          env: .*-dev
+        receiver: dev-default
+
+  receivers:
+    # - name: 'admins'
+    #   webhookConfigs:
+    #   - sendResolved: True
+    #     url: http://telegram-alerts:9087/alert/-chat_id
+  - name: 'null'
+  - name: 'dev-default'
+    slackConfigs:
+    - channel: 'dev-default'
+      sendResolved: true
+      iconURL: https://avatars3.githubusercontent.com/u/3380462
+      title: |-
+        [{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .CommonLabels.alertname }} for {{ .CommonLabels.job }}
+        {{- if gt (len .CommonLabels) (len .GroupLabels) -}}
+          {{" "}}(
+          {{- with .CommonLabels.Remove .GroupLabels.Names }}
+            {{- range $index, $label := .SortedPairs -}}
+              {{ if $index }}, {{ end }}
+              {{- $label.Name }}="{{ $label.Value -}}"
+            {{- end }}
+          {{- end -}}
+          )
+        {{- end }}
+      text: >-
+        {{ range .Alerts -}}
+        *Alert:* {{ .Annotations.title }}{{ if .Labels.severity }} - `{{ .Labels.severity}}`{{ end }}
+
+        *message:* {{ .Annotations.message }}
+
+        *Details:*
+          {{ range .Labels.SortedPairs }} • *{{ .Name }}:* `{{ .Value }}`
+          {{ end }}
+        {{ end }}
+  - name: 'dev-warnings'
+    slackConfigs:
+    - channel: 'dev-warnings'
+      sendResolved: true
+      titleLink: 'https://grafana.example.com'
+      title: '{{ if eq .Status "firing" }}:disappointed_relieved:{{ else }}:dancing_panda:{{
+        end }} [{{ .Status | toUpper }}] {{ .CommonAnnotations.summary }}'
+      text: "{{ range .Alerts }}*Priority*: `{{ .Labels.severity | toUpper }}`\n\
+        Monitoring host: {{ .Labels.monitor }}\n{{ .Annotations.message }}\n\
+        {{ end }}"
+  - name: 'dev-criticals'
+    slackConfigs:
+    - channel: 'dev-criticals'
+      sendResolved: true
+      titleLink: 'https://grafana.example.com'
+      title: '{{ if eq .Status "firing" }}:scream:{{ else }}:dancing_panda:{{
+        end }} [{{ .Status | toUpper }}] {{ .CommonAnnotations.summary }}'
+      text: "{{ range .Alerts }}*Priority*: `{{ .Labels.severity | toUpper }}`\n\
+        Monitoring host: {{ .Labels.monitor }}\n{{ .Annotations.message }}\n\
+        {{ end }}"

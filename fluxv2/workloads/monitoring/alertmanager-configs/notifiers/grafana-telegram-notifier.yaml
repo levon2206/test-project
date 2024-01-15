@@ -1,0 +1,10 @@
+apiVersion: v1
+data:
+  telegram-notifier.yaml: ???
+kind: Secret
+metadata:
+  name: grafana-notifiers
+  namespace: monitoring
+  labels:
+    grafana_notifier: "1"
+type: Opaque

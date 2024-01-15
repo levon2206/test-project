@@ -1,0 +1,94 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app: kube-prometheus-stack
+    release: prometheus-operator
+  name: elasticsearch.rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: justwatchcom/elasticsearch_exporter
+    rules:
+    - alert: Elasticsearch Heap Usage Too High
+      annotations:
+        message: "The heap usage is over 90% for 5m"
+      expr: '(elasticsearch_jvm_memory_used_bytes{area="heap"} / elasticsearch_jvm_memory_max_bytes{area="heap"})
+        * 100 > 90'
+      labels:
+        severity: critical
+    - alert: Elasticsearch Heap Usage warning
+      annotations:
+        message: "The heap usage is over 80% for 5m"
+      expr: '(elasticsearch_jvm_memory_used_bytes{area="heap"} / elasticsearch_jvm_memory_max_bytes{area="heap"})
+        * 100 > 80'
+      labels:
+        severity: warning
+    - alert: Elasticsearch disk space low
+      annotations:
+        message: The disk usage is over 80%
+      expr: 'elasticsearch_filesystem_data_available_bytes / elasticsearch_filesystem_data_size_bytes
+        * 100 < 20'
+      labels:
+        severity: warning
+    - alert: Elasticsearch disk out of space
+      annotations:
+        message: The disk usage is over 90%
+      expr: 'elasticsearch_filesystem_data_available_bytes / elasticsearch_filesystem_data_size_bytes
+        * 100 < 10'
+      labels:
+        severity: critical
+    - alert: Elasticsearch Cluster Red
+      annotations:
+        message: Elastic Cluster Red status
+      expr: 'elasticsearch_cluster_health_status{color="red"} == 1'
+      labels:
+        severity: critical
+    - alert: Elasticsearch Cluster Yellow
+      annotations:
+        message: Elastic Cluster Yellow status
+      expr: 'elasticsearch_cluster_health_status{color="yellow"} == 1'
+      labels:
+        severity: warning
+    - alert: Elasticsearch Healthy Nodes
+      annotations:
+        message: "Number Healthy Nodes less then number_of_nodes"
+      expr: "elasticsearch_cluster_health_number_of_nodes < number_of_nodes"
+      labels:
+        severity: critical
+    - alert: Elasticsearch Healthy Data Nodes
+      annotations:
+        message: "Number Healthy Data Nodes less then number_of_data_nodes"
+      expr: "elasticsearch_cluster_health_number_of_data_nodes < number_of_data_nodes"
+      labels:
+        severity: critical
+    - alert: Elasticsearch relocation shards
+      annotations:
+        message: "Number of relocation shards for 20 min"
+      expr: "elasticsearch_cluster_health_relocating_shards > 0"
+      labels:
+        severity: critical
+    - alert: Elasticsearch initializing shards
+      annotations:
+        message: "Number of initializing shards for 10 min"
+      expr: "elasticsearch_cluster_health_initializing_shards > 0"
+      labels:
+        severity: warning
+    - alert: Elasticsearch unassigned shards
+      annotations:
+        message: "Number of unassigned shards for 2 min"
+      expr: "elasticsearch_cluster_health_unassigned_shards > 0"
+      labels:
+        severity: critical
+    - alert: Elasticsearch pending tasks
+      annotations:
+        message: "Number of pending tasks for 10 min. Cluster works slowly."
+      expr: "elasticsearch_cluster_health_number_of_pending_tasks > 0"
+      labels:
+        severity: warning
+    - alert: Elasticsearch no new documents
+      annotations:
+        message: No new documents for 10 min!
+      expr: 'rate(elasticsearch_indices_docs{es_data_node="true"}[10m]) < 1'
+      labels:
+        severity: warning

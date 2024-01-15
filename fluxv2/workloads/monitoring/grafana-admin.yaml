@@ -1,0 +1,9 @@
+apiVersion: v1
+data:
+  admin-password: RWlRdWk9cGg0dm9oRmFpMm9xdW9vfnF1MUw=
+  admin-user: YWRtaW4=
+kind: Secret
+metadata:
+  name: grafana-admin
+  namespace: monitoring
+type: Opaque

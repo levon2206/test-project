@@ -1,0 +1,191 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app: kube-prometheus-stack
+    release: prometheus-operator
+  name: host-and-hardware.rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: node-exporter
+    rules:
+    - alert: Host out of memory
+      annotations:
+        message: Node memory is filling up (< 10% left)
+      expr: "node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100\
+        \ < 10"
+      labels:
+        severity: warning
+    - alert: Host memory under memory pressure
+      annotations:
+        message: The node is under heavy memory pressure. High rate of major page
+          faults
+      expr: "rate(node_vmstat_pgmajfault[1m]) > 1000"
+      labels:
+        severity: warning
+    - alert: Host unusual network throughput in
+      annotations:
+        message: Host network interfaces are probably receiving too much data
+          (> 100 MB/s)
+      expr: "sum by (instance) (irate(node_network_receive_bytes_total[2m])) /\
+        \ 1024 / 1024 > 100"
+      labels:
+        severity: warning
+    - alert: Host unusual network throughput out
+      annotations:
+        message: Host network interfaces are probably sending too much data (>
+          100 MB/s)
+      expr: "sum by (instance) (irate(node_network_transmit_bytes_total[2m]))\
+        \ / 1024 / 1024 > 100"
+      labels:
+        severity: warning
+    - alert: Host unusual disk read rate
+      annotations:
+        message: Disk is probably reading too much data (> 50 MB/s)
+      expr: "sum by (instance) (irate(node_disk_read_bytes_total[2m])) / 1024\
+        \ / 1024 > 50"
+      labels:
+        severity: warning
+    - alert: Host unusual disk write rate
+      annotations:
+        message: Disk is probably writing too much data (> 50 MB/s)
+      expr: "sum by (instance) (irate(node_disk_written_bytes_total[2m])) / 1024\
+        \ / 1024 > 50"
+      labels:
+        severity: warning
+    - alert: Host out of disk space
+      annotations:
+        message: Disk is almost full (< 10% left)
+      expr: '(node_filesystem_avail_bytes{mountpoint="/rootfs"}  * 100) / node_filesystem_size_bytes{mountpoint="/rootfs"}
+        < 10'
+      labels:
+        severity: warning
+    - alert: Host disk will fill in 4 hours
+      annotations:
+        message: Disk will fill in 4 hours at current write rate
+      expr: 'predict_linear(node_filesystem_free_bytes{fstype!~"tmpfs"}[1h], 4
+        * 3600) < 0'
+      labels:
+        severity: warning
+    - alert: Host out of inodes
+      annotations:
+        message: Disk is almost running out of available inodes (< 10% left)
+      expr: 'node_filesystem_files_free{mountpoint ="/rootfs"} / node_filesystem_files{mountpoint
+        ="/rootfs"} * 100 < 10'
+      labels:
+        severity: warning
+    - alert: Host unusual disk read latency
+      annotations:
+        message: Disk latency is growing (read operations > 100ms)
+      expr: "rate(node_disk_read_time_seconds_total[1m]) / rate(node_disk_reads_completed_total[1m])\
+        \ > 100"
+      labels:
+        severity: warning
+    - alert: Host unusual disk write latency
+      annotations:
+        message: Disk latency is growing (write operations > 100ms)
+      expr: "rate(node_disk_write_time_seconds_total[1m]) / rate(node_disk_writes_completed_total[1m])\
+        \ > 100"
+      labels:
+        severity: warning
+    - alert: Host high CPU load
+      annotations:
+        message: CPU load is > 80%
+      expr: '100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m]))
+        * 100) > 80'
+      labels:
+        severity: warning
+    - alert: Host context switching
+      annotations:
+        message: Context switching is growing on node (> 1000 / s)
+        summary: |
+          1000 context switches is an arbitrary number.
+          Alert threshold depends on nature of application.
+          Please read: https://github.com/samber/awesome-prometheus-alerts/issues/58
+      expr: '(rate(node_context_switches_total[5m])) / (count without(cpu, mode)
+        (node_cpu_seconds_total{mode="idle"})) > 1000'
+      labels:
+        severity: warning
+    - alert: Host swap is filling up
+      annotations:
+        message: Swap is filling up (>80%)
+      expr: "(1 - (node_memory_SwapFree_bytes / node_memory_SwapTotal_bytes))\
+        \ * 100 > 80"
+      labels:
+        severity: warning
+    - alert: Host SystemD service crashed
+      annotations:
+        message: "SystemD service crashed"
+      expr: 'node_systemd_unit_state{state="failed"} == 1'
+      labels:
+        severity: warning
+    - alert: Host physical component too hot
+      annotations:
+        message: "Physical hardware component too hot"
+      expr: "node_hwmon_temp_celsius > 75"
+      labels:
+        severity: warning
+    - alert: Host node overtemperature alarm
+      annotations:
+        message: "Physical node temperature alarm triggered"
+      expr: "node_hwmon_temp_alarm == 1"
+      labels:
+        severity: critical
+    - alert: Host RAID array got inactive
+      annotations:
+        message: 'RAID array {{ $labels.device }} is in degraded state due to
+          one or more disks failures. Number of spare drives is insufficient to
+          fix issue automatically.'
+      expr: 'node_md_state{state="inactive"} > 0'
+      labels:
+        severity: critical
+    - alert: Host RAID disk failure
+      annotations:
+        message: 'At least one device in RAID array on {{ $labels.instance }}
+          failed. Array {{ $labels.md_device }} needs attention and possibly a
+          disk swap'
+      expr: 'node_md_disks{state="fail"} > 0'
+      labels:
+        severity: warning
+    - alert: Host kernel version deviations
+      annotations:
+        message: Different kernel versions are running
+      expr: 'count(sum(label_replace(node_uname_info, "kernel", "$1", "release",
+        "([0-9]+.[0-9]+.[0-9]+).*")) by (kernel)) > 1'
+      labels:
+        severity: warning
+    - alert: Host OOM kill detected
+      annotations:
+        message: OOM kill detected
+      expr: 'increase(node_vmstat_oom_kill[5m]) > 0'
+      labels:
+        severity: warning
+    - alert: Host EDAC Correctable Errors detected
+      annotations:
+        message: '{{ $labels.instance }} has had {{ printf "%.0f" $value }} correctable
+          memory errors reported by EDAC in the last 5 minutes.'
+      expr: 'increase(node_edac_correctable_errors_total[5m]) > 0'
+      labels:
+        severity: warning
+    - alert: Host EDAC Uncorrectable Errors detected
+      annotations:
+        message: '{{ $labels.instance }} has had {{ printf "%.0f" $value }} uncorrectable
+          memory errors reported by EDAC in the last 5 minutes.'
+      expr: 'node_edac_uncorrectable_errors_total > 0'
+      labels:
+        severity: warning
+    - alert: Host Network Receive Errors
+      annotations:
+        message: '{{ $labels.instance }} interface {{ $labels.device }} has encountered
+          {{ printf "%.0f" $value }} receive errors in the last five minutes.'
+      expr: 'increase(node_network_receive_errs_total[5m]) > 0'
+      labels:
+        severity: warning
+    - alert: Host Network Transmit Errors
+      annotations:
+        message: '{{ $labels.instance }} interface {{ $labels.device }} has encountered
+          {{ printf "%.0f" $value }} transmit errors in the last five minutes.'
+      expr: 'increase(node_network_transmit_errs_total[5m]) > 0'
+      labels:
+        severity: warning

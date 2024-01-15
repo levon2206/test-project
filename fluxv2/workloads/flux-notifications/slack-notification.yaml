@@ -1,0 +1,8 @@
+apiVersion: v1
+data:
+  address: ???
+kind: Secret
+metadata:
+  name: slack-url
+  namespace: flux-system
+type: Opaque
